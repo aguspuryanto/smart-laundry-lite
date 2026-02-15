@@ -1,15 +1,61 @@
 
 import React from 'react';
-// Added Clock and Package to the imports from lucide-react
-import { Search, Filter, MoreVertical, MessageSquare, Check, Truck, Loader2, Clock, Package } from 'lucide-react';
-import { Order, OrderStatus } from '../types';
+import { 
+  Search, 
+  Filter, 
+  MoreVertical, 
+  Check, 
+  Truck, 
+  Loader2, 
+  Clock, 
+  Package,
+  RefreshCcw,
+  CheckCircle2,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
+import { Order, OrderStatus, WaStatus } from '../types';
 
 interface OrderListProps {
   orders: Order[];
   updateStatus: (id: string, status: OrderStatus) => void;
+  checkWaStatus: (id: string) => void;
 }
 
-const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
+const WaStatusIndicator: React.FC<{ status?: WaStatus, onRefresh: () => void }> = ({ status, onRefresh }) => {
+  if (!status) return null;
+
+  const getStatusConfig = () => {
+    switch (status) {
+      case 'pending': return { icon: <Clock size={12} />, color: 'text-slate-400', label: 'Pending' };
+      case 'sent': return { icon: <Check size={12} />, color: 'text-slate-500', label: 'Terkirim' };
+      case 'delivered': return { icon: <CheckCircle2 size={12} />, color: 'text-indigo-500', label: 'Sampai' };
+      case 'read': return { icon: <CheckCircle2 size={12} />, color: 'text-blue-500', label: 'Dibaca' };
+      case 'failed': return { icon: <AlertCircle size={12} />, color: 'text-rose-500', label: 'Gagal' };
+      default: return { icon: <Clock size={12} />, color: 'text-slate-400', label: status };
+    }
+  };
+
+  const config = getStatusConfig();
+
+  return (
+    <div className="flex items-center space-x-2 mt-1">
+      <div className={`flex items-center space-x-1 ${config.color}`} title={config.label}>
+        {config.icon}
+        <span className="text-[10px] font-bold uppercase">{config.label}</span>
+      </div>
+      <button 
+        onClick={(e) => { e.stopPropagation(); onRefresh(); }}
+        className="p-1 hover:bg-slate-200 rounded-md text-slate-400 hover:text-indigo-600 transition-colors"
+        title="Refresh Status WA"
+      >
+        <RefreshCcw size={10} />
+      </button>
+    </div>
+  );
+};
+
+const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus, checkWaStatus }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -37,7 +83,7 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
               <th className="px-6 py-4">Pelanggan</th>
               <th className="px-6 py-4">Layanan</th>
               <th className="px-6 py-4">Berat (kg)</th>
-              <th className="px-6 py-4">Estimasi Selesai</th>
+              <th className="px-6 py-4">Status WA</th>
               <th className="px-6 py-4">Total</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4 text-center">Aksi</th>
@@ -61,10 +107,7 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{order.weight} kg</td>
                 <td className="px-6 py-4">
-                   <div className="flex items-center space-x-1 text-xs text-slate-600">
-                     <Clock size={12} className="text-slate-400" />
-                     <span>{new Date(order.estimatedCompletion).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                   </div>
+                   <WaStatusIndicator status={order.waStatus} onRefresh={() => checkWaStatus(order.id)} />
                 </td>
                 <td className="px-6 py-4 font-bold text-slate-800 text-sm">
                   Rp {order.totalPrice.toLocaleString('id-ID')}
@@ -86,7 +129,6 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
                       <button 
                         onClick={() => updateStatus(order.id, OrderStatus.PROCESSING)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Proses Sekarang"
                       >
                         <Loader2 size={18} />
                       </button>
@@ -95,7 +137,6 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
                       <button 
                         onClick={() => updateStatus(order.id, OrderStatus.COMPLETED)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Tandai Selesai"
                       >
                         <Check size={18} />
                       </button>
@@ -104,7 +145,6 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus }) => {
                       <button 
                         onClick={() => updateStatus(order.id, OrderStatus.PICKED_UP)}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Sudah Diambil"
                       >
                         <Truck size={18} />
                       </button>

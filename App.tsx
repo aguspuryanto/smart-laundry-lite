@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { Order, OrderStatus, Expense, ServiceType, User } from './types';
+import { Order, OrderStatus, Expense, ServiceType, User, WaStatus } from './types';
 import { dbInstance } from './db';
 import Dashboard from './components/Dashboard';
 import OrderList from './components/OrderList';
@@ -30,19 +30,14 @@ const App: React.FC = () => {
   const [fonnteToken, setFonnteToken] = useState<string>('');
   const [isLoadingDB, setIsLoadingDB] = useState(true);
 
-  // Initialize DB and Seed Data
   useEffect(() => {
     const initApp = async () => {
       try {
         await dbInstance.init();
-        
-        // Seed initial admin if not exists
         const admin = await dbInstance.getByKey<any>('users', 'admin');
         if (!admin) {
           await dbInstance.put('users', { username: 'admin', password: 'password123', role: 'admin' });
         }
-
-        // Load data from IndexedDB
         const loadedOrders = await dbInstance.getAll<Order>('orders');
         const loadedExpenses = await dbInstance.getAll<Expense>('transaksi');
         const tokenSetting = await dbInstance.getByKey<{key: string, value: string}>('settings', 'fonnte_token');
@@ -50,7 +45,6 @@ const App: React.FC = () => {
         setOrders(loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setExpenses(loadedExpenses);
         if (tokenSetting) setFonnteToken(tokenSetting.value);
-        
       } catch (err) {
         console.error("Failed to init DB", err);
       } finally {
@@ -75,7 +69,6 @@ const App: React.FC = () => {
       createdAt: new Date().toISOString(),
       status: OrderStatus.PENDING,
     };
-    
     await dbInstance.put('orders', order);
     setOrders([order, ...orders]);
     setIsNewOrderOpen(false);
@@ -85,7 +78,6 @@ const App: React.FC = () => {
   const updateOrderStatus = async (id: string, newStatus: OrderStatus) => {
     const updatedOrders = orders.map(o => o.id === id ? { ...o, status: newStatus } : o);
     setOrders(updatedOrders);
-    
     const targetOrder = updatedOrders.find(o => o.id === id);
     if (targetOrder) {
       await dbInstance.put('orders', targetOrder);
@@ -103,14 +95,12 @@ const App: React.FC = () => {
     };
     await dbInstance.put('transaksi', expense);
     setExpenses([expense, ...expenses]);
-    showNotification("Catatan pengeluaran berhasil disimpan", "success");
+    showNotification("Catatan pengeluaran disimpan", "success");
   };
 
   const formatPhoneNumber = (phone: string) => {
     let formatted = phone.replace(/[^0-9]/g, '');
-    if (formatted.startsWith('0')) {
-      formatted = '62' + formatted.slice(1);
-    }
+    if (formatted.startsWith('0')) formatted = '62' + formatted.slice(1);
     return formatted;
   };
 
@@ -122,9 +112,9 @@ const App: React.FC = () => {
 
     let message = "";
     if (status === OrderStatus.PROCESSING) {
-      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nPesanan Anda *#${order.id}* sedang *DIPROSES*.\nLayanan: ${order.serviceType}\nTotal: Rp ${order.totalPrice.toLocaleString('id-ID')}\n\nTerima kasih!`;
+      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nPesanan Anda *#${order.id}* sedang *DIPROSES*.\nTotal: Rp ${order.totalPrice.toLocaleString('id-ID')}\n\nTerima kasih!`;
     } else if (status === OrderStatus.COMPLETED) {
-      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nKabar baik! Pesanan Anda *#${order.id}* sudah *SELESAI* dan siap diambil.\n\nTotal Bayar: *Rp ${order.totalPrice.toLocaleString('id-ID')}*`;
+      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nPesanan Anda *#${order.id}* sudah *SELESAI* dan siap diambil.\nTotal: *Rp ${order.totalPrice.toLocaleString('id-ID')}*`;
     }
 
     try {
@@ -137,15 +127,46 @@ const App: React.FC = () => {
         })
       });
       const data = await response.json();
-      if (data.status) showNotification(`WhatsApp terkirim!`, 'success');
+      if (data.status) {
+        // Store message ID and initial status
+        const updatedOrder = { ...order, waMessageId: data.id[0], waStatus: 'pending' as WaStatus };
+        await dbInstance.put('orders', updatedOrder);
+        setOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
+        showNotification(`WhatsApp dikirim ke server!`, 'success');
+      }
     } catch (err) {
       showNotification("Koneksi Fonnte bermasalah.", "error");
     }
   };
 
+  const checkWaStatus = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order?.waMessageId || !fonnteToken) return;
+
+    try {
+      const response = await fetch('https://api.fonnte.com/get-message-status', {
+        method: 'POST',
+        headers: { 'Authorization': fonnteToken },
+        body: new URLSearchParams({ id: order.waMessageId })
+      });
+      const data = await response.json();
+      
+      // Status in data might be 'sent', 'delivered', 'read', etc.
+      if (data.status) {
+        const newWaStatus = data.message_status.toLowerCase() as WaStatus;
+        const updatedOrder = { ...order, waStatus: newWaStatus };
+        await dbInstance.put('orders', updatedOrder);
+        setOrders(prev => prev.map(o => o.id === orderId ? updatedOrder : o));
+        showNotification(`Status WA diperbarui: ${newWaStatus}`, 'info');
+      }
+    } catch (err) {
+      console.error("Failed to check status", err);
+    }
+  };
+
   const showNotification = (message: string, type: 'success' | 'info' | 'error') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
+    setTimeout(() => setNotification(null), 3000);
   };
 
   if (isLoadingDB) {
@@ -168,7 +189,6 @@ const App: React.FC = () => {
           </div>
           <span className="font-bold text-xl tracking-tight">Smart Laundry</span>
         </div>
-        
         <nav className="flex-1 px-4 py-4 space-y-2">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -188,7 +208,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </nav>
-
         <div className="p-6 border-t border-indigo-600">
           <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl bg-indigo-800 hover:bg-red-600 transition-colors text-sm font-medium">
             <LogOut size={18} />
@@ -214,7 +233,7 @@ const App: React.FC = () => {
 
         <div className="p-8 pb-20">
           {activeTab === 'dashboard' && <Dashboard orders={orders} expenses={expenses} />}
-          {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} />}
+          {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} checkWaStatus={checkWaStatus} />}
           {activeTab === 'finance' && <Finance orders={orders} expenses={expenses} addExpense={addExpense} />}
           {activeTab === 'settings' && <Settings token={fonnteToken} setToken={saveFonnteToken} />}
         </div>

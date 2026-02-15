@@ -1,10 +1,9 @@
 
 import React, { useMemo } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
-import { TrendingUp, TrendingDown, Users, Package, Wallet } from 'lucide-react';
+import { TrendingUp, TrendingDown, Package, Wallet, MessageCircle } from 'lucide-react';
 import { Order, Expense, OrderStatus } from '../types';
 
 interface DashboardProps {
@@ -32,11 +31,14 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, expenses }) => {
     const revenue = orders.reduce((acc, o) => acc + o.totalPrice, 0);
     const exp = expenses.reduce((acc, e) => acc + e.amount, 0);
     const active = orders.filter(o => o.status === OrderStatus.PROCESSING || o.status === OrderStatus.PENDING).length;
+    const readMessages = orders.filter(o => o.waStatus === 'read').length;
+    
     return {
       totalRevenue: revenue,
       totalExpenses: exp,
       netProfit: revenue - exp,
-      activeOrders: active
+      activeOrders: active,
+      readMessages
     };
   }, [orders, expenses]);
 
@@ -56,18 +58,18 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, expenses }) => {
           sub="Bulan Ini"
         />
         <StatCard 
-          title="Pengeluaran" 
-          value={`Rp ${stats.totalExpenses.toLocaleString('id-ID')}`} 
-          icon={<TrendingDown size={24} />} 
-          color="bg-rose-500" 
-          sub="Operasional"
-        />
-        <StatCard 
           title="Laba Bersih" 
           value={`Rp ${stats.netProfit.toLocaleString('id-ID')}`} 
           icon={<TrendingUp size={24} />} 
           color="bg-emerald-500" 
           sub="Estimasi"
+        />
+        <StatCard 
+          title="WhatsApp Dibaca" 
+          value={stats.readMessages.toString()} 
+          icon={<MessageCircle size={24} />} 
+          color="bg-blue-500" 
+          sub="Engagement"
         />
         <StatCard 
           title="Pesanan Aktif" 
@@ -97,14 +99,14 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, expenses }) => {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">Pesanan Terakhir</h3>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Aktivitas Terbaru</h3>
           <div className="space-y-4">
             {orders.slice(0, 5).map((order) => (
               <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{order.customerName}</p>
-                  <p className="text-xs text-slate-500">{order.serviceType}</p>
+                  <p className="text-[10px] text-slate-500">WA: {order.waStatus || 'Belum dikirim'}</p>
                 </div>
                 <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
                   order.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-700' :

@@ -13,6 +13,8 @@ export enum ServiceType {
   DRY_CLEAN = 'Dry Clean'
 }
 
+export type WaStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | null;
+
 export interface Order {
   id: string;
   customerName: string;
@@ -23,6 +25,8 @@ export interface Order {
   status: OrderStatus;
   createdAt: string;
   estimatedCompletion: string;
+  waMessageId?: string;
+  waStatus?: WaStatus;
 }
 
 export interface Expense {
