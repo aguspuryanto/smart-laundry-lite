@@ -7,11 +7,12 @@ import {
   Settings as SettingsIcon, 
   LogOut, 
   Plus, 
-  MessageSquare,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Order, OrderStatus, Expense, ServiceType, User } from './types';
+import { dbInstance } from './db';
 import Dashboard from './components/Dashboard';
 import OrderList from './components/OrderList';
 import Finance from './components/Finance';
@@ -26,51 +27,83 @@ const App: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
-  const [fonnteToken, setFonnteToken] = useState<string>(() => localStorage.getItem('fonnte_token') || '');
+  const [fonnteToken, setFonnteToken] = useState<string>('');
+  const [isLoadingDB, setIsLoadingDB] = useState(true);
 
-  // Persist Token
+  // Initialize DB and Seed Data
   useEffect(() => {
-    localStorage.setItem('fonnte_token', fonnteToken);
-  }, [fonnteToken]);
+    const initApp = async () => {
+      try {
+        await dbInstance.init();
+        
+        // Seed initial admin if not exists
+        const admin = await dbInstance.getByKey<any>('users', 'admin');
+        if (!admin) {
+          await dbInstance.put('users', { username: 'admin', password: 'password123', role: 'admin' });
+        }
 
-  useEffect(() => {
-    const mockOrders: Order[] = [
-      {
-        id: '1',
-        customerName: 'Budi Santoso',
-        phoneNumber: '081234567890',
-        weight: 5,
-        serviceType: ServiceType.WASH_IRON,
-        totalPrice: 50000,
-        status: OrderStatus.PROCESSING,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        estimatedCompletion: new Date(Date.now() + 86400000).toISOString()
+        // Load data from IndexedDB
+        const loadedOrders = await dbInstance.getAll<Order>('orders');
+        const loadedExpenses = await dbInstance.getAll<Expense>('transaksi');
+        const tokenSetting = await dbInstance.getByKey<{key: string, value: string}>('settings', 'fonnte_token');
+        
+        setOrders(loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        setExpenses(loadedExpenses);
+        if (tokenSetting) setFonnteToken(tokenSetting.value);
+        
+      } catch (err) {
+        console.error("Failed to init DB", err);
+      } finally {
+        setIsLoadingDB(false);
       }
-    ];
-    setOrders(mockOrders);
+    };
+    initApp();
   }, []);
 
   const handleLogin = (u: User) => setUser(u);
   const handleLogout = () => setUser(null);
 
-  const addOrder = (newOrder: Omit<Order, 'id' | 'createdAt' | 'status'>) => {
+  const saveFonnteToken = async (newToken: string) => {
+    setFonnteToken(newToken);
+    await dbInstance.put('settings', { key: 'fonnte_token', value: newToken });
+  };
+
+  const addOrder = async (newOrder: Omit<Order, 'id' | 'createdAt' | 'status'>) => {
     const order: Order = {
       ...newOrder,
       id: Math.random().toString(36).substr(2, 6).toUpperCase(),
       createdAt: new Date().toISOString(),
       status: OrderStatus.PENDING,
     };
+    
+    await dbInstance.put('orders', order);
     setOrders([order, ...orders]);
     setIsNewOrderOpen(false);
     showNotification(`Pesanan ${order.id} berhasil dibuat!`, 'success');
   };
 
   const updateOrderStatus = async (id: string, newStatus: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
-    const order = orders.find(o => o.id === id);
-    if (order && (newStatus === OrderStatus.PROCESSING || newStatus === OrderStatus.COMPLETED)) {
-      await sendFonnteNotification(order, newStatus);
+    const updatedOrders = orders.map(o => o.id === id ? { ...o, status: newStatus } : o);
+    setOrders(updatedOrders);
+    
+    const targetOrder = updatedOrders.find(o => o.id === id);
+    if (targetOrder) {
+      await dbInstance.put('orders', targetOrder);
+      if (newStatus === OrderStatus.PROCESSING || newStatus === OrderStatus.COMPLETED) {
+        await sendFonnteNotification(targetOrder, newStatus);
+      }
     }
+  };
+
+  const addExpense = async (newExp: Omit<Expense, 'id' | 'date'>) => {
+    const expense: Expense = {
+      ...newExp,
+      id: Math.random().toString(36).substr(2, 9),
+      date: new Date().toISOString()
+    };
+    await dbInstance.put('transaksi', expense);
+    setExpenses([expense, ...expenses]);
+    showNotification("Catatan pengeluaran berhasil disimpan", "success");
   };
 
   const formatPhoneNumber = (phone: string) => {
@@ -83,37 +116,30 @@ const App: React.FC = () => {
 
   const sendFonnteNotification = async (order: Order, status: OrderStatus) => {
     if (!fonnteToken) {
-      showNotification("API Token Fonnte belum diatur. Pesan tidak terkirim.", "error");
+      showNotification("API Token Fonnte belum diatur.", "error");
       return;
     }
 
     let message = "";
     if (status === OrderStatus.PROCESSING) {
-      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nPesanan Anda *#${order.id}* sedang *DIPROSES*.\nLayanan: ${order.serviceType}\nBerat: ${order.weight}kg\nTotal: Rp ${order.totalPrice.toLocaleString('id-ID')}\nEstimasi Selesai: ${new Date(order.estimatedCompletion).toLocaleString('id-ID')}\n\nTerima kasih telah mempercayakan pakaian Anda kepada kami!`;
+      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nPesanan Anda *#${order.id}* sedang *DIPROSES*.\nLayanan: ${order.serviceType}\nTotal: Rp ${order.totalPrice.toLocaleString('id-ID')}\n\nTerima kasih!`;
     } else if (status === OrderStatus.COMPLETED) {
-      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nKabar baik! Pesanan Anda *#${order.id}* sudah *SELESAI* dan siap diambil di outlet kami.\n\nTotal Bayar: *Rp ${order.totalPrice.toLocaleString('id-ID')}*\n\nSampai jumpa di outlet!`;
+      message = `*Smart Laundry Pro*\n\nHalo ${order.customerName},\n\nKabar baik! Pesanan Anda *#${order.id}* sudah *SELESAI* dan siap diambil.\n\nTotal Bayar: *Rp ${order.totalPrice.toLocaleString('id-ID')}*`;
     }
 
     try {
       const response = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
-        headers: {
-          'Authorization': fonnteToken,
-        },
+        headers: { 'Authorization': fonnteToken },
         body: new URLSearchParams({
           'target': formatPhoneNumber(order.phoneNumber),
           'message': message,
         })
       });
-
       const data = await response.json();
-      if (data.status) {
-        showNotification(`WhatsApp terkirim ke ${order.customerName}`, 'success');
-      } else {
-        showNotification(`Fonnte Error: ${data.reason || 'Gagal kirim'}`, 'error');
-      }
+      if (data.status) showNotification(`WhatsApp terkirim!`, 'success');
     } catch (err) {
-      showNotification("Koneksi ke Fonnte gagal.", "error");
+      showNotification("Koneksi Fonnte bermasalah.", "error");
     }
   };
 
@@ -121,6 +147,15 @@ const App: React.FC = () => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
   };
+
+  if (isLoadingDB) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 size={48} className="text-indigo-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Menghubungkan Database...</p>
+      </div>
+    );
+  }
 
   if (!user) return <Login onLogin={handleLogin} />;
 
@@ -169,10 +204,7 @@ const App: React.FC = () => {
           </h1>
           <div className="flex items-center space-x-4">
             {activeTab !== 'settings' && (
-              <button 
-                onClick={() => setIsNewOrderOpen(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all active:scale-95"
-              >
+              <button onClick={() => setIsNewOrderOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all active:scale-95">
                 <Plus size={18} />
                 <span>Order Baru</span>
               </button>
@@ -183,14 +215,8 @@ const App: React.FC = () => {
         <div className="p-8 pb-20">
           {activeTab === 'dashboard' && <Dashboard orders={orders} expenses={expenses} />}
           {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} />}
-          {activeTab === 'finance' && (
-            <Finance 
-              orders={orders} 
-              expenses={expenses} 
-              addExpense={(exp) => setExpenses([ { ...exp, id: Math.random().toString(36).substr(2, 9), date: new Date().toISOString() }, ...expenses])} 
-            />
-          )}
-          {activeTab === 'settings' && <Settings token={fonnteToken} setToken={setFonnteToken} />}
+          {activeTab === 'finance' && <Finance orders={orders} expenses={expenses} addExpense={addExpense} />}
+          {activeTab === 'settings' && <Settings token={fonnteToken} setToken={saveFonnteToken} />}
         </div>
 
         {notification && (
@@ -203,11 +229,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        <NewOrderModal 
-          isOpen={isNewOrderOpen} 
-          onClose={() => setIsNewOrderOpen(false)} 
-          onSubmit={addOrder} 
-        />
+        <NewOrderModal isOpen={isNewOrderOpen} onClose={() => setIsNewOrderOpen(false)} onSubmit={addOrder} />
       </main>
     </div>
   );
