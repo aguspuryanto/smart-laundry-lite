@@ -12,7 +12,8 @@ import {
   RefreshCcw,
   CheckCircle2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  MessageSquareOff
 } from 'lucide-react';
 import { Order, OrderStatus, WaStatus } from '../types';
 
@@ -20,9 +21,16 @@ interface OrderListProps {
   orders: Order[];
   updateStatus: (id: string, status: OrderStatus) => void;
   checkWaStatus: (id: string) => void;
+  isWaEnabled: boolean;
 }
 
-const WaStatusIndicator: React.FC<{ status?: WaStatus, onRefresh: () => void }> = ({ status, onRefresh }) => {
+const WaStatusIndicator: React.FC<{ status?: WaStatus, onRefresh: () => void, isEnabled: boolean }> = ({ status, onRefresh, isEnabled }) => {
+  if (!isEnabled) return (
+    <div className="flex items-center space-x-1 text-slate-300" title="Integrasi Mati">
+      <MessageSquareOff size={12} />
+      <span className="text-[10px] font-bold uppercase tracking-tight">Disabled</span>
+    </div>
+  );
   if (!status) return null;
 
   const getStatusConfig = () => {
@@ -55,7 +63,7 @@ const WaStatusIndicator: React.FC<{ status?: WaStatus, onRefresh: () => void }> 
   );
 };
 
-const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus, checkWaStatus }) => {
+const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus, checkWaStatus, isWaEnabled }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -107,7 +115,11 @@ const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus, checkWaStat
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{order.weight} kg</td>
                 <td className="px-6 py-4">
-                   <WaStatusIndicator status={order.waStatus} onRefresh={() => checkWaStatus(order.id)} />
+                   <WaStatusIndicator 
+                    status={order.waStatus} 
+                    onRefresh={() => checkWaStatus(order.id)} 
+                    isEnabled={isWaEnabled} 
+                   />
                 </td>
                 <td className="px-6 py-4 font-bold text-slate-800 text-sm">
                   Rp {order.totalPrice.toLocaleString('id-ID')}

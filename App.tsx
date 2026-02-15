@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [fonnteToken, setFonnteToken] = useState<string>('');
+  const [isWaEnabled, setIsWaEnabled] = useState<boolean>(false);
   const [isLoadingDB, setIsLoadingDB] = useState(true);
 
   useEffect(() => {
@@ -40,11 +41,14 @@ const App: React.FC = () => {
         }
         const loadedOrders = await dbInstance.getAll<Order>('orders');
         const loadedExpenses = await dbInstance.getAll<Expense>('transaksi');
+        
         const tokenSetting = await dbInstance.getByKey<{key: string, value: string}>('settings', 'fonnte_token');
+        const waEnabledSetting = await dbInstance.getByKey<{key: string, value: boolean}>('settings', 'wa_enabled');
         
         setOrders(loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setExpenses(loadedExpenses);
         if (tokenSetting) setFonnteToken(tokenSetting.value);
+        if (waEnabledSetting) setIsWaEnabled(waEnabledSetting.value);
       } catch (err) {
         console.error("Failed to init DB", err);
       } finally {
@@ -60,6 +64,12 @@ const App: React.FC = () => {
   const saveFonnteToken = async (newToken: string) => {
     setFonnteToken(newToken);
     await dbInstance.put('settings', { key: 'fonnte_token', value: newToken });
+  };
+
+  const saveWaEnabled = async (enabled: boolean) => {
+    setIsWaEnabled(enabled);
+    await dbInstance.put('settings', { key: 'wa_enabled', value: enabled });
+    showNotification(`Integrasi WhatsApp ${enabled ? 'Diaktifkan' : 'Dimatikan'}`, 'info');
   };
 
   const addOrder = async (newOrder: Omit<Order, 'id' | 'createdAt' | 'status'>) => {
@@ -81,7 +91,7 @@ const App: React.FC = () => {
     const targetOrder = updatedOrders.find(o => o.id === id);
     if (targetOrder) {
       await dbInstance.put('orders', targetOrder);
-      if (newStatus === OrderStatus.PROCESSING || newStatus === OrderStatus.COMPLETED) {
+      if (isWaEnabled && (newStatus === OrderStatus.PROCESSING || newStatus === OrderStatus.COMPLETED)) {
         await sendFonnteNotification(targetOrder, newStatus);
       }
     }
@@ -105,6 +115,7 @@ const App: React.FC = () => {
   };
 
   const sendFonnteNotification = async (order: Order, status: OrderStatus) => {
+    if (!isWaEnabled) return;
     if (!fonnteToken) {
       showNotification("API Token Fonnte belum diatur.", "error");
       return;
@@ -128,7 +139,6 @@ const App: React.FC = () => {
       });
       const data = await response.json();
       if (data.status) {
-        // Store message ID and initial status
         const updatedOrder = { ...order, waMessageId: data.id[0], waStatus: 'pending' as WaStatus };
         await dbInstance.put('orders', updatedOrder);
         setOrders(prev => prev.map(o => o.id === order.id ? updatedOrder : o));
@@ -140,6 +150,7 @@ const App: React.FC = () => {
   };
 
   const checkWaStatus = async (orderId: string) => {
+    if (!isWaEnabled) return;
     const order = orders.find(o => o.id === orderId);
     if (!order?.waMessageId || !fonnteToken) return;
 
@@ -151,7 +162,6 @@ const App: React.FC = () => {
       });
       const data = await response.json();
       
-      // Status in data might be 'sent', 'delivered', 'read', etc.
       if (data.status) {
         const newWaStatus = data.message_status.toLowerCase() as WaStatus;
         const updatedOrder = { ...order, waStatus: newWaStatus };
@@ -233,9 +243,9 @@ const App: React.FC = () => {
 
         <div className="p-8 pb-20">
           {activeTab === 'dashboard' && <Dashboard orders={orders} expenses={expenses} />}
-          {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} checkWaStatus={checkWaStatus} />}
+          {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} checkWaStatus={checkWaStatus} isWaEnabled={isWaEnabled} />}
           {activeTab === 'finance' && <Finance orders={orders} expenses={expenses} addExpense={addExpense} />}
-          {activeTab === 'settings' && <Settings token={fonnteToken} setToken={saveFonnteToken} />}
+          {activeTab === 'settings' && <Settings token={fonnteToken} setToken={saveFonnteToken} isEnabled={isWaEnabled} setEnabled={saveWaEnabled} />}
         </div>
 
         {notification && (
