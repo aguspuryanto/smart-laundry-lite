@@ -10,10 +10,9 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Menu,
-  X
 } from 'lucide-react';
-import { Order, OrderStatus, Expense, ServiceType, User, WaStatus } from './types';
+import { Order, OrderStatus, Expense, User, WaStatus } from './types';
+import { SERVICE_PRICES, ESTIMATED_HOURS, MENU_APP } from './constants';
 import { dbInstance } from './db';
 import Dashboard from './components/Dashboard';
 import OrderList from './components/OrderList';
@@ -21,6 +20,7 @@ import Finance from './components/Finance';
 import NewOrderModal from './components/NewOrderModal';
 import Login from './components/Login';
 import Settings from './components/Settings';
+import Header from './components/Header';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -36,6 +36,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       try {
+        // Check for existing session in localStorage
+        const savedUser = localStorage.getItem('smartLaundryUser');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        }
+
         await dbInstance.init();
         const admin = await dbInstance.getByKey<any>('users', 'admin');
         if (!admin) {
@@ -60,8 +66,15 @@ const App: React.FC = () => {
     initApp();
   }, []);
 
-  const handleLogin = (u: User) => setUser(u);
-  const handleLogout = () => setUser(null);
+  const handleLogin = (u: User) => {
+    setUser(u);
+    localStorage.setItem('smartLaundryUser', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('smartLaundryUser');
+  };
 
   const saveFonnteToken = async (newToken: string) => {
     setFonnteToken(newToken);
@@ -192,13 +205,6 @@ const App: React.FC = () => {
 
   if (!user) return <Login onLogin={handleLogin} />;
 
-  const navigationItems = [
-    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-    { id: 'orders', label: 'Pesanan', icon: Package },
-    { id: 'finance', label: 'Uang', icon: Receipt },
-    { id: 'settings', label: 'Opsi', icon: SettingsIcon },
-  ];
-
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden flex-col md:flex-row">
       {/* Desktop Sidebar */}
@@ -210,7 +216,7 @@ const App: React.FC = () => {
           <span className="font-bold text-xl tracking-tight">Smart Laundry</span>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2">
-          {navigationItems.map((item) => (
+          {MENU_APP.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
@@ -233,29 +239,11 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-auto relative pb-20 md:pb-0">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 shadow-sm">
-          <div className="flex items-center space-x-3 md:hidden">
-             <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
-                <Package size={18} />
-             </div>
-             <span className="font-bold text-lg text-slate-800 tracking-tight">Smart Laundry</span>
-          </div>
-          <h1 className="hidden md:block text-xl font-bold text-slate-800 uppercase tracking-wide">
-            {activeTab === 'dashboard' ? 'Overview' : activeTab === 'orders' ? 'Pesanan' : activeTab === 'finance' ? 'Keuangan' : 'Pengaturan'}
-          </h1>
-          <div className="flex items-center space-x-2 md:space-x-4">
-            {activeTab !== 'settings' && (
-              <button onClick={() => setIsNewOrderOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all active:scale-95 text-sm md:text-base">
-                <Plus size={18} />
-                <span className="hidden sm:inline">Order Baru</span>
-                <span className="sm:hidden">Order</span>
-              </button>
-            )}
-            <button onClick={handleLogout} className="md:hidden p-2 text-slate-400 hover:text-red-500 transition-colors">
-              <LogOut size={20} />
-            </button>
-          </div>
-        </header>
+        <Header 
+          activeTab={activeTab}
+          onNewOrder={() => setIsNewOrderOpen(true)}
+          onLogout={handleLogout}
+        />
 
         <div className="p-4 md:p-8">
           {activeTab === 'dashboard' && <Dashboard orders={orders} expenses={expenses} />}
@@ -269,7 +257,7 @@ const App: React.FC = () => {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-2 flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        {navigationItems.map((item) => (
+        {MENU_APP.map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id as any)}
