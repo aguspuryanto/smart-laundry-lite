@@ -16,5 +16,23 @@ View your app in AI Studio: https://ai.studio/apps/drive/1xTIir_QU2dhf_QiCUzpz9W
 1. Install dependencies:
    `npm install`
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+3. Install Tailwind CSS:
+   `npm install tailwindcss @tailwindcss/vite`
+
+   buat file index.css, tambahkan kode berikut:
+   ```css
+   @import "tailwindcss";
+   ```
+4. Edit file [vite.config.ts](vite.config.ts), tambahkan kode berikut:
+   ```typescript
+   import tailwindcss from '@tailwindcss/vite';
+   ```
+
+   edit plugins: [react(), tailwindcss()],
+5. Edit file App.tsx
+   ```
+   import index.css
+   ```
+   
+5. Run the app:
    `npm run dev`
