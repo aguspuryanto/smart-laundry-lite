@@ -64,6 +64,7 @@ const WaStatusIndicator: React.FC<{ status?: WaStatus, onRefresh: () => void, is
 };
 
 const OrderList: React.FC<OrderListProps> = ({ orders, updateStatus, checkWaStatus, isWaEnabled }) => {
+  console.log('OrdersList:', orders);
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">

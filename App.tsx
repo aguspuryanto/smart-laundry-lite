@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Order, OrderStatus, Expense, ServiceType, User, WaStatus } from './types';
 import { dbInstance } from './db';
+import { SERVICE_PRICES, ESTIMATED_HOURS, MENU_APP } from './constants';
 import Dashboard from './components/Dashboard';
 import OrderList from './components/OrderList';
 import Finance from './components/Finance';
@@ -34,6 +35,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       try {
+        // Check for existing session in localStorage
+        const savedUser = localStorage.getItem('smartLaundryUser');
+        if (savedUser) {
+          setUser(JSON.parse(savedUser));
+        }
+
         await dbInstance.init();
         const admin = await dbInstance.getByKey<any>('users', 'admin');
         if (!admin) {
@@ -48,6 +55,7 @@ const App: React.FC = () => {
         setOrders(loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setExpenses(loadedExpenses);
         if (tokenSetting) setFonnteToken(tokenSetting.value);
+        else setFonnteToken(import.meta.env.VITE_FONNTE_API_KEY);
         if (waEnabledSetting) setIsWaEnabled(waEnabledSetting.value);
       } catch (err) {
         console.error("Failed to init DB", err);
@@ -58,8 +66,15 @@ const App: React.FC = () => {
     initApp();
   }, []);
 
-  const handleLogin = (u: User) => setUser(u);
-  const handleLogout = () => setUser(null);
+  const handleLogin = (u: User) => {
+    setUser(u);
+    localStorage.setItem('smartLaundryUser', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('smartLaundryUser');
+  };
 
   const saveFonnteToken = async (newToken: string) => {
     setFonnteToken(newToken);
@@ -129,7 +144,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const response = await fetch('https://api.fonnte.com/send', {
+      const response = await fetch(import.meta.env.VITE_FONNTE_API_URL + '/send', {
         method: 'POST',
         headers: { 'Authorization': fonnteToken },
         body: new URLSearchParams({
@@ -155,7 +170,7 @@ const App: React.FC = () => {
     if (!order?.waMessageId || !fonnteToken) return;
 
     try {
-      const response = await fetch('https://api.fonnte.com/get-message-status', {
+      const response = await fetch(import.meta.env.VITE_FONNTE_API_URL + '/get-message-status', {
         method: 'POST',
         headers: { 'Authorization': fonnteToken },
         body: new URLSearchParams({ id: order.waMessageId })
@@ -200,12 +215,7 @@ const App: React.FC = () => {
           <span className="font-bold text-xl tracking-tight">Smart Laundry</span>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'orders', label: 'Pesanan', icon: Package },
-            { id: 'finance', label: 'Keuangan', icon: Receipt },
-            { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
-          ].map((item) => (
+          {MENU_APP.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}

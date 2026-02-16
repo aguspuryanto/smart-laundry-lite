@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Calculator, Calendar } from 'lucide-react';
-import { ServiceType, Order } from '../types';
+import { ServiceType, Order, OrderStatus } from '../types';
 import { SERVICE_PRICES, ESTIMATED_HOURS } from '../constants';
+import { dbInstance } from '../db';
 
 interface NewOrderModalProps {
   isOpen: boolean;
@@ -22,6 +23,11 @@ const NewOrderModal: React.FC<NewOrderModalProps> = ({ isOpen, onClose, onSubmit
   const [estimation, setEstimation] = useState('');
 
   useEffect(() => {
+    // Initialize database on component mount
+    dbInstance.init().catch(console.error);
+  }, []);
+
+  useEffect(() => {
     const price = SERVICE_PRICES[formData.serviceType] * formData.weight;
     setTotalPrice(price);
 
@@ -31,14 +37,37 @@ const NewOrderModal: React.FC<NewOrderModalProps> = ({ isOpen, onClose, onSubmit
     setEstimation(estDate.toISOString());
   }, [formData.weight, formData.serviceType]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.weight > 0 && formData.customerName) {
-      onSubmit({
+      const orderData = {
         ...formData,
         totalPrice,
         estimatedCompletion: estimation
-      });
+      };
+      
+      onSubmit(orderData);
+
+      // save into indexDB, table orders
+      try {
+        const order: Order = {
+          id: `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          customerName: formData.customerName,
+          phoneNumber: formData.phoneNumber,
+          weight: formData.weight,
+          serviceType: formData.serviceType,
+          totalPrice: totalPrice,
+          status: OrderStatus.PENDING,
+          createdAt: new Date().toISOString(),
+          estimatedCompletion: estimation
+        };
+        
+        await dbInstance.put('orders', order);
+        console.log('Order saved to IndexedDB:', order);
+      } catch (error) {
+        console.error('Error saving order to IndexedDB:', error);
+      }
+      
       setFormData({ customerName: '', phoneNumber: '', weight: 0, serviceType: ServiceType.WASH_FOLD });
     }
   };
