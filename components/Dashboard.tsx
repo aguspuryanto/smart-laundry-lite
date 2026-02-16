@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
-import { TrendingUp, TrendingDown, Package, Wallet, MessageCircle } from 'lucide-react';
+import { TrendingUp, Package, Wallet, MessageCircle } from 'lucide-react';
 import { Order, Expense, OrderStatus } from '../types';
 
 interface DashboardProps {
@@ -12,16 +12,16 @@ interface DashboardProps {
 }
 
 const StatCard: React.FC<{ title: string, value: string, icon: React.ReactNode, color: string, sub: string }> = ({ title, value, icon, color, sub }) => (
-  <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+  <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
     <div className="flex justify-between items-start mb-4">
-      <div className={`${color} p-3 rounded-xl text-white shadow-lg shadow-indigo-100`}>
-        {icon}
+      <div className={`${color} p-2.5 md:p-3 rounded-xl text-white shadow-lg shadow-indigo-100`}>
+        {React.cloneElement(icon as React.ReactElement, { size: 20 })}
       </div>
-      <span className="text-xs font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded-full uppercase">{sub}</span>
+      <span className="text-[10px] md:text-xs font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded-full uppercase tracking-tighter md:tracking-normal">{sub}</span>
     </div>
     <div>
-      <p className="text-sm text-slate-500 font-medium mb-1">{title}</p>
-      <p className="text-2xl font-bold text-slate-800">{value}</p>
+      <p className="text-xs md:text-sm text-slate-500 font-medium mb-1 truncate">{title}</p>
+      <p className="text-xl md:text-2xl font-bold text-slate-800 break-words">{value}</p>
     </div>
   </div>
 );
@@ -48,67 +48,67 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, expenses }) => {
   ];
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
         <StatCard 
-          title="Total Pendapatan" 
+          title="Pendapatan" 
           value={`Rp ${stats.totalRevenue.toLocaleString('id-ID')}`} 
-          icon={<Wallet size={24} />} 
+          icon={<Wallet />} 
           color="bg-indigo-600" 
           sub="Bulan Ini"
         />
         <StatCard 
           title="Laba Bersih" 
           value={`Rp ${stats.netProfit.toLocaleString('id-ID')}`} 
-          icon={<TrendingUp size={24} />} 
+          icon={<TrendingUp />} 
           color="bg-emerald-500" 
           sub="Estimasi"
         />
         <StatCard 
-          title="WhatsApp Dibaca" 
+          title="WA Dibaca" 
           value={stats.readMessages.toString()} 
-          icon={<MessageCircle size={24} />} 
+          icon={<MessageCircle />} 
           color="bg-blue-500" 
           sub="Engagement"
         />
         <StatCard 
-          title="Pesanan Aktif" 
+          title="Aktif" 
           value={stats.activeOrders.toString()} 
-          icon={<Package size={24} />} 
+          icon={<Package />} 
           color="bg-amber-500" 
           sub="On-Progress"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Analisis Arus Kas</h3>
-          <div className="h-72">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-100">
+          <h3 className="text-base md:text-lg font-bold text-slate-800 mb-6">Analisis Arus Kas</h3>
+          <div className="h-64 md:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `Rp${val/1000}k`} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
+                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} tickFormatter={(val) => `Rp${val/1000}k`} />
                 <Tooltip 
                   cursor={{fill: '#f8fafc'}}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }} 
                 />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">Aktivitas Terbaru</h3>
-          <div className="space-y-4">
+        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
+          <h3 className="text-base md:text-lg font-bold text-slate-800 mb-4">Aktivitas Terbaru</h3>
+          <div className="space-y-3">
             {orders.slice(0, 5).map((order) => (
               <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{order.customerName}</p>
-                  <p className="text-[10px] text-slate-500">WA: {order.waStatus || 'Belum dikirim'}</p>
+                <div className="overflow-hidden">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{order.customerName}</p>
+                  <p className="text-[10px] text-slate-500">WA: {order.waStatus || 'None'}</p>
                 </div>
-                <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
+                <div className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
                   order.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-700' :
                   order.status === OrderStatus.PROCESSING ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
                 }`}>

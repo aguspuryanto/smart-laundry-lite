@@ -9,11 +9,12 @@ import {
   Plus, 
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Menu,
+  X
 } from 'lucide-react';
 import { Order, OrderStatus, Expense, ServiceType, User, WaStatus } from './types';
 import { dbInstance } from './db';
-import { SERVICE_PRICES, ESTIMATED_HOURS, MENU_APP } from './constants';
 import Dashboard from './components/Dashboard';
 import OrderList from './components/OrderList';
 import Finance from './components/Finance';
@@ -35,12 +36,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Check for existing session in localStorage
-        const savedUser = localStorage.getItem('smartLaundryUser');
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-        }
-
         await dbInstance.init();
         const admin = await dbInstance.getByKey<any>('users', 'admin');
         if (!admin) {
@@ -55,7 +50,6 @@ const App: React.FC = () => {
         setOrders(loadedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         setExpenses(loadedExpenses);
         if (tokenSetting) setFonnteToken(tokenSetting.value);
-        else setFonnteToken(import.meta.env.VITE_FONNTE_API_KEY);
         if (waEnabledSetting) setIsWaEnabled(waEnabledSetting.value);
       } catch (err) {
         console.error("Failed to init DB", err);
@@ -66,15 +60,8 @@ const App: React.FC = () => {
     initApp();
   }, []);
 
-  const handleLogin = (u: User) => {
-    setUser(u);
-    localStorage.setItem('smartLaundryUser', JSON.stringify(u));
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('smartLaundryUser');
-  };
+  const handleLogin = (u: User) => setUser(u);
+  const handleLogout = () => setUser(null);
 
   const saveFonnteToken = async (newToken: string) => {
     setFonnteToken(newToken);
@@ -144,7 +131,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const response = await fetch(import.meta.env.VITE_FONNTE_API_URL + '/send', {
+      const response = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: { 'Authorization': fonnteToken },
         body: new URLSearchParams({
@@ -170,7 +157,7 @@ const App: React.FC = () => {
     if (!order?.waMessageId || !fonnteToken) return;
 
     try {
-      const response = await fetch(import.meta.env.VITE_FONNTE_API_URL + '/get-message-status', {
+      const response = await fetch('https://api.fonnte.com/get-message-status', {
         method: 'POST',
         headers: { 'Authorization': fonnteToken },
         body: new URLSearchParams({ id: order.waMessageId })
@@ -205,9 +192,17 @@ const App: React.FC = () => {
 
   if (!user) return <Login onLogin={handleLogin} />;
 
+  const navigationItems = [
+    { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'orders', label: 'Pesanan', icon: Package },
+    { id: 'finance', label: 'Uang', icon: Receipt },
+    { id: 'settings', label: 'Opsi', icon: SettingsIcon },
+  ];
+
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <aside className="w-64 bg-indigo-700 text-white flex flex-col shadow-xl z-20">
+    <div className="flex h-screen bg-slate-50 overflow-hidden flex-col md:flex-row">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 bg-indigo-700 text-white flex-col shadow-xl z-20">
         <div className="p-6 flex items-center space-x-3">
           <div className="bg-white p-2 rounded-lg text-indigo-700">
             <Package size={24} />
@@ -215,7 +210,7 @@ const App: React.FC = () => {
           <span className="font-bold text-xl tracking-tight">Smart Laundry</span>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2">
-          {MENU_APP.map((item) => (
+          {navigationItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
@@ -224,7 +219,7 @@ const App: React.FC = () => {
               }`}
             >
               <item.icon size={20} />
-              <span>{item.label}</span>
+              <span>{item.label === 'Home' ? 'Dashboard' : item.label === 'Uang' ? 'Keuangan' : item.label === 'Opsi' ? 'Pengaturan' : item.label}</span>
             </button>
           ))}
         </nav>
@@ -236,40 +231,70 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col overflow-auto relative">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10 shadow-sm">
-          <h1 className="text-xl font-bold text-slate-800 uppercase tracking-wide">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col overflow-auto relative pb-20 md:pb-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-30 shadow-sm">
+          <div className="flex items-center space-x-3 md:hidden">
+             <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                <Package size={18} />
+             </div>
+             <span className="font-bold text-lg text-slate-800 tracking-tight">Smart Laundry</span>
+          </div>
+          <h1 className="hidden md:block text-xl font-bold text-slate-800 uppercase tracking-wide">
             {activeTab === 'dashboard' ? 'Overview' : activeTab === 'orders' ? 'Pesanan' : activeTab === 'finance' ? 'Keuangan' : 'Pengaturan'}
           </h1>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
             {activeTab !== 'settings' && (
-              <button onClick={() => setIsNewOrderOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all active:scale-95">
+              <button onClick={() => setIsNewOrderOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all active:scale-95 text-sm md:text-base">
                 <Plus size={18} />
-                <span>Order Baru</span>
+                <span className="hidden sm:inline">Order Baru</span>
+                <span className="sm:hidden">Order</span>
               </button>
             )}
+            <button onClick={handleLogout} className="md:hidden p-2 text-slate-400 hover:text-red-500 transition-colors">
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
 
-        <div className="p-8 pb-20">
+        <div className="p-4 md:p-8">
           {activeTab === 'dashboard' && <Dashboard orders={orders} expenses={expenses} />}
           {activeTab === 'orders' && <OrderList orders={orders} updateStatus={updateOrderStatus} checkWaStatus={checkWaStatus} isWaEnabled={isWaEnabled} />}
           {activeTab === 'finance' && <Finance orders={orders} expenses={expenses} addExpense={addExpense} />}
           {activeTab === 'settings' && <Settings token={fonnteToken} setToken={saveFonnteToken} isEnabled={isWaEnabled} setEnabled={saveWaEnabled} />}
         </div>
 
-        {notification && (
-          <div className={`fixed bottom-8 right-8 p-4 rounded-2xl shadow-2xl flex items-center space-x-3 transition-all animate-in slide-in-from-right-10 ${
-            notification.type === 'success' ? 'bg-green-600 text-white' : 
-            notification.type === 'error' ? 'bg-rose-600 text-white' : 'bg-indigo-600 text-white'
-          } z-50 max-w-sm`}>
-            {notification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-            <p className="font-semibold text-sm">{notification.message}</p>
-          </div>
-        )}
-
-        <NewOrderModal isOpen={isNewOrderOpen} onClose={() => setIsNewOrderOpen(false)} onSubmit={addOrder} />
+        {/* Floating Action Button for Mobile Orders if needed, or stick to header */}
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-2 flex justify-between items-center z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        {navigationItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id as any)}
+            className={`flex flex-col items-center space-y-1 transition-all ${
+              activeTab === item.id ? 'text-indigo-600 scale-110 font-bold' : 'text-slate-400'
+            }`}
+          >
+            <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+            <span className="text-[10px] uppercase tracking-tighter">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Notifications */}
+      {notification && (
+        <div className={`fixed bottom-20 md:bottom-8 right-4 md:right-8 p-4 rounded-2xl shadow-2xl flex items-center space-x-3 transition-all animate-in slide-in-from-bottom-10 ${
+          notification.type === 'success' ? 'bg-green-600 text-white' : 
+          notification.type === 'error' ? 'bg-rose-600 text-white' : 'bg-indigo-600 text-white'
+        } z-50 max-w-[90vw] md:max-w-sm`}>
+          {notification.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+          <p className="font-semibold text-sm">{notification.message}</p>
+        </div>
+      )}
+
+      <NewOrderModal isOpen={isNewOrderOpen} onClose={() => setIsNewOrderOpen(false)} onSubmit={addOrder} />
     </div>
   );
 };
